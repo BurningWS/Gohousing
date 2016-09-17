@@ -73,7 +73,7 @@
         <div class="control-entry">
             <label>导入房源文件：</label>
             <div class="control-input">
-                <input type="file" name="file" onChange="importRentInfo(this)" />
+                <input type="button" value="loadInfo" name="file" onclick="importRentInfo('rent.csv')" />
             </div>
         </div>
     </div>
@@ -118,8 +118,8 @@ function takeSubway(radio) {
 }
 
 function importRentInfo(fileInfo) {
-    var file = fileInfo.files[0].name;
-    loadRentLocationByFile(file);
+//    var file = fileInfo.files[0].name;
+    loadRentLocationByFile(fileInfo);
 }
 
 function workLocationSelected(e) {
@@ -230,7 +230,6 @@ function loadRentLocationByFile(fileName) {
     delRentLocation();
     var rent_locations = new Set();
     $.get(fileName, function(data) {
-alert('haha');
         data = data.split("\n");
         data.forEach(function(item, index) {
             rent_locations.add(item.split(",")[1]);

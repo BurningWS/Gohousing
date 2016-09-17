@@ -16,12 +16,30 @@ import java.util.ArrayList;
  */
 public class HousingCrawler {
 
+
     public static void main(String[] args) {
-        String s = sendRequest("http://sh.58.com/pinpaigongyu/pn/118/?minprice=1500_2000");
+
+        for (int i = 0; i < 130; i++) {
+            long l = System.currentTimeMillis();
+            String url = String.format("http://sh.58.com/pinpaigongyu/pn/%d/?minprice=1500_2000", i);
+            String s = sendRequest(url);
+            int t = parse(s);
+            System.out.printf("page%d:%.3fs\n", i, (System.currentTimeMillis() - l) * 1.0 / 1000);
+            if (t == 0)
+                break;
+        }
+
+
+        System.out.println("end...");
+
+    }
+
+    private static int parse(String s) {
         _58Parser parser = new _58Parser();
         ArrayList<HouseInfo> list = parser.parse(s);
         try {
-            File file = new File("/home/wangsong/myRent.csv");
+            String dir = System.getProperty("user.dir");
+            File file = new File(dir + "/src/main/webapp/rent.csv");
             if (!file.exists()) {
                 System.out.println(file.createNewFile());
             }
@@ -30,13 +48,13 @@ public class HousingCrawler {
             for (HouseInfo info : list) {
                 pw.printf("%s,%s,%s,%s\n", info.getName(), info.getAddress(), info.getRent(), info.getUrl());
             }
+            System.out.printf("insert %d statics\n", list.size());
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        System.out.println("end...");
-
+        return list.size();
     }
 
     private static String sendRequest(String link) {
