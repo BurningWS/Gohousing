@@ -14,7 +14,9 @@ import java.util.regex.Pattern;
  */
 public class _58Parser {
 
-    Pattern p = Pattern.compile("(?<=】).*", Pattern.UNICODE_CHARACTER_CLASS);
+//    Pattern p = Pattern.compile("(?<=】).*", Pattern.UNICODE_CHARACTER_CLASS);
+
+    Pattern p1 = Pattern.compile("(?<=lat = ').*(?=')"), p2 = Pattern.compile("(?<=lon = ').*(?=')");
 
     public ArrayList<HouseInfo> parse(String s) {
         ArrayList<HouseInfo> list = new ArrayList<HouseInfo>();
@@ -22,10 +24,6 @@ public class _58Parser {
         Elements es = d.select(".list > li");
         for (Element e : es) {
             String title = e.select("h2").first().text();
-            Matcher m = p.matcher(title);
-            while (m.find()) {
-                title = m.group();
-            }
 
             String url = "http://sh.58.com/" + e.select("a").first().attr("href");
             String[] split = title.split(" ");
@@ -37,9 +35,28 @@ public class _58Parser {
             }
             String rent = e.select(".money").first().select("b").first().text();
             HouseInfo houseInfo = new HouseInfo(title, address, rent, url);
+
+            parsePosition(url, houseInfo);
+
             list.add(houseInfo);
         }
 
         return list;
+    }
+
+    //爬取经纬度
+    private void parsePosition(String url, HouseInfo houseInfo) {
+        Matcher m;
+        String ds = HousingCrawler.sendRequest(url);
+        m = p2.matcher(ds);
+
+        for (int i = 0; m.find(); i++, m.usePattern(p1)) {
+            if (i == 0) {
+                houseInfo.setLng(m.group());
+            } else {
+                houseInfo.setLat(m.group());
+                break;
+            }
+        }
     }
 }

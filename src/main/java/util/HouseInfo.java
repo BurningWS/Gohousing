@@ -9,11 +9,13 @@ import lombok.Data;
 @Data
 public class HouseInfo {
 
-//    房源名称，地址，月租，房源url地址
+//    房源名称，地址，月租，房源url地址，经纬度
     private String name;
     private String address;
     private String rent;
     private String url;
+    private String lng;
+    private String lat;
 
     public HouseInfo(String name, String address, String rent, String url) {
         this.name = name;
