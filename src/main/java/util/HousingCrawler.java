@@ -8,12 +8,9 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.URLEncoder;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 public class HousingCrawler {
 
     static PrintWriter pw;
+    static RandomAccessFile rw;
 
     static boolean status[]; //检测未访问到或失败的页面
 
@@ -41,6 +39,7 @@ public class HousingCrawler {
             }
 
             pw = new PrintWriter(new FileWriter(file, true), true);
+            rw = new RandomAccessFile(file, "rw");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -50,7 +49,7 @@ public class HousingCrawler {
 
     final static String HiZhuBASE = "http://m.hizhu.com/Home/House/scrollinfo.html?num=%d&where=";
 
-    final static String HiZhuCondition = URLEncoder.encode("{\"limit\":1000,\"sort\":1,\"rentmoney\":\"1500-2500\",\"line_id\":0,\"stand_id\":0}");
+    final static String HiZhuCondition = URLEncoder.encode("{\"limit\":1000,\"sort\":1,\"rentmoney\":\"1500以下\",\"line_id\":0,\"stand_id\":0}"); //1500以下,1500-2500
 
     static class MultiThread implements Runnable {
         int index;
@@ -69,30 +68,35 @@ public class HousingCrawler {
 
             String s = sendRequest(url);
             ParseInfo info = new ParseInfo(s, index);
-            int t = parse(info);
-            System.out.printf("page%d：%.3fs\n", index, (System.currentTimeMillis() - l) * 1.0 / 1000);
-            status[index] = true;
-            cd.countDown();
+            try {
+                int t = parse(info);
+                System.out.printf("page%d：%.3fs\n", index, (System.currentTimeMillis() - l) * 1.0 / 1000);
+                status[index] = true;
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                cd.countDown();
+            }
         }
     }
 
     public static void main(String[] args) {
         ExecutorService pool = Executors.newCachedThreadPool();
-        int num = 5;
-        cd = new CountDownLatch(num + 1);
+        int num = 80;
+        cd = new CountDownLatch(num);
         status = new boolean[num + 1];
         for (int i = 1; i <= num; i++) {
             pool.execute(new MultiThread(i));
 
             try {
-                Thread.sleep(500);
+                Thread.sleep(500); //阻塞，防止太快锁ip
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
 
         try {
-            cd.await(2, TimeUnit.MINUTES);
+            cd.await(5, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -103,12 +107,24 @@ public class HousingCrawler {
         }
 
         System.out.println("\nend...");
+        try {
+            pw.close();
+            rw.write(new byte[]{0}); //修改首行回车
+            rw.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
     private static int parse(ParseInfo parseInfo) {
 
-        ArrayList<HouseInfo> list = parser.parse(parseInfo);
+        List<HouseInfo> list = parser.parse(parseInfo);
 
+        return insertStatics(parseInfo, list);
+    }
+
+    private static int insertStatics(ParseInfo parseInfo, List<HouseInfo> list) {
         for (HouseInfo info : list) {
             pw.printf("\n%s,%s,%s,%s,%s,%s", info.getName(), info.getAddress(), info.getRent(), info.getUrl(), info.getLng(), info.getLat());
         }

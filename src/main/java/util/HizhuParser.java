@@ -5,73 +5,81 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.concurrent.*;
 
 /**
  * Created by wangsong on 16-9-19.
  */
 public class HizhuParser implements HouseParser {
 
+    ExecutorService pool = Executors.newFixedThreadPool(20);
 
     @Override
-    public ArrayList<HouseInfo> parse(final ParseInfo info) {
+    public List<HouseInfo> parse(final ParseInfo info) {
         Document d = Jsoup.parse(info.getContent());
         Elements li = d.select("li");
-        ArrayList<HouseInfo> list = new ArrayList<HouseInfo>();
 
+        final List<HouseInfo> list = new CopyOnWriteArrayList<>();
         final CountDownLatch cd = new CountDownLatch(li.size());
-        ExecutorService pool = Executors.newCachedThreadPool();
 
         int index = 1, size = li.size();
         for (Element e : li) {
-            final String url = e.select("a").first().attr("href");
-
-            Elements div = e.select("div");
-            Element d1 = div.get(0);
-            String rentType = d1.select("p").first().text();
-
-            d1 = div.get(1);
-            String address = d1.select("h3").first().text();
-
-            String money = d1.select("em").first().text();
-
-            String payType = d1.select("span").first().text();
-
-            String detail = d1.select(".houseRight_address").first().text();
-
-            detail = String.format("【%s】%s %s %s", rentType, detail, address, payType);
-
-            final HouseInfo houseInfo = new HouseInfo(detail, address, money, url);
-            final ParseInfo parseInfo = new ParseInfo(index++, size);
-
-            class MultiThread implements Runnable {
-
-                @Override
-                public void run() {
-                    parsePosition(url, houseInfo, parseInfo, info.getIndex());
-                    cd.countDown();
-                }
-            }
-
-            pool.execute(new MultiThread());
             try {
-                Thread.sleep(500); //阻塞0.5s，防止太快
-            } catch (InterruptedException e1) {
+                final String url = e.select("a").first().attr("href");
+
+                Elements div = e.select("div");
+                Element d1 = div.get(0);
+                String rentType = d1.select("p").first().text();
+
+                d1 = div.get(1);
+                String address = d1.select("h3").first().text();
+
+                String money = d1.select("em").first().text();
+
+                String payType = d1.select("span").first().text();
+
+                String detail = d1.select(".houseRight_address").first().text();
+
+                detail = String.format("【%s】%s %s %s", rentType, detail, address, payType);
+
+                final HouseInfo houseInfo = new HouseInfo(detail, address, money, url);
+                final ParseInfo parseInfo = new ParseInfo(index++, size);
+
+                class MultiThread implements Runnable {
+
+                    @Override
+                    public void run() {
+                        try {
+                            parsePosition(url, houseInfo, parseInfo, info.getIndex());
+                            if (houseInfo.getLat() != null && houseInfo.getLng() != null) {
+                                list.add(houseInfo);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        } finally {
+                            cd.countDown();
+                        }
+                    }
+                }
+
+                pool.execute(new MultiThread());
+                Thread.sleep(1000); //阻塞，防止太快锁ip
+
+            } catch (Exception e1) {
                 e1.printStackTrace();
+                cd.countDown();
+                continue;
             }
-            list.add(houseInfo);
         }
+
         try {
-            cd.await(1, TimeUnit.MINUTES);
+            cd.await(4, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        System.out.println(list);
+//        System.out.println(list);
         return list;
     }
 
@@ -94,7 +102,7 @@ public class HizhuParser implements HouseParser {
 
         houseInfo.setLng(map.get("lpt_x"));
         houseInfo.setLat(map.get("lpt_y"));
-        houseInfo.setAddress(map.get("estate_address"));
+//        houseInfo.setAddress(map.get("estate_address"));
 
         System.out.printf("page%d：get x,y %d/%d\n", index, info.getIndex(), info.getTotal());
     }
