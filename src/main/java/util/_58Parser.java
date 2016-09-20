@@ -12,15 +12,15 @@ import java.util.regex.Pattern;
 /**
  * Created by wangsong on 16-9-16.
  */
-public class _58Parser {
+public class _58Parser implements HouseParser {
 
 //    Pattern p = Pattern.compile("(?<=】).*", Pattern.UNICODE_CHARACTER_CLASS);
 
     Pattern p1 = Pattern.compile("(?<=lat = ').*(?=')"), p2 = Pattern.compile("(?<=lon = ').*(?=')");
 
-    public ArrayList<HouseInfo> parse(String s) {
+    public ArrayList<HouseInfo> parse(ParseInfo info) {
         ArrayList<HouseInfo> list = new ArrayList<HouseInfo>();
-        Document d = Jsoup.parse(s);
+        Document d = Jsoup.parse(info.getContent());
         Elements es = d.select(".list > li");
         for (Element e : es) {
             String title = e.select("h2").first().text();

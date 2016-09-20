@@ -8,7 +8,11 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -22,9 +26,11 @@ public class HousingCrawler {
 
     static PrintWriter pw;
 
-    static boolean status[];
+    static boolean status[]; //检测未访问到或失败的页面
 
     static CountDownLatch cd;
+
+    static HouseParser parser = new HizhuParser(); //_58Parser()
 
     static {
         try {
@@ -40,6 +46,12 @@ public class HousingCrawler {
         }
     }
 
+    final static String _58BASE = "http://sh.58.com/pinpaigongyu/pn/%d/?minprice=0_1000";
+
+    final static String HiZhuBASE = "http://m.hizhu.com/Home/House/scrollinfo.html?num=%d&where=";
+
+    final static String HiZhuCondition = URLEncoder.encode("{\"limit\":1000,\"sort\":1,\"rentmoney\":\"1500-2500\",\"line_id\":0,\"stand_id\":0}");
+
     static class MultiThread implements Runnable {
         int index;
 
@@ -50,10 +62,15 @@ public class HousingCrawler {
         @Override
         public void run() {
             long l = System.currentTimeMillis();
-            String url = String.format("http://sh.58.com/pinpaigongyu/pn/%d/?minprice=1000_2000", index);
+            String url = String.format(HiZhuBASE, index);
+
+            url = url + HiZhuCondition;
+            System.out.println(url);
+
             String s = sendRequest(url);
-            int t = parse(s);
-            System.out.printf("page%d:%.3fs\n", index, (System.currentTimeMillis() - l) * 1.0 / 1000);
+            ParseInfo info = new ParseInfo(s, index);
+            int t = parse(info);
+            System.out.printf("page%d：%.3fs\n", index, (System.currentTimeMillis() - l) * 1.0 / 1000);
             status[index] = true;
             cd.countDown();
         }
@@ -61,10 +78,10 @@ public class HousingCrawler {
 
     public static void main(String[] args) {
         ExecutorService pool = Executors.newCachedThreadPool();
-        int num = 175;
+        int num = 5;
         cd = new CountDownLatch(num + 1);
         status = new boolean[num + 1];
-        for (int i = 0; i <= num; i++) {
+        for (int i = 1; i <= num; i++) {
             pool.execute(new MultiThread(i));
 
             try {
@@ -88,15 +105,15 @@ public class HousingCrawler {
         System.out.println("\nend...");
     }
 
-    private static int parse(String s) {
-        _58Parser parser = new _58Parser();
-        ArrayList<HouseInfo> list = parser.parse(s);
+    private static int parse(ParseInfo parseInfo) {
+
+        ArrayList<HouseInfo> list = parser.parse(parseInfo);
 
         for (HouseInfo info : list) {
             pw.printf("\n%s,%s,%s,%s,%s,%s", info.getName(), info.getAddress(), info.getRent(), info.getUrl(), info.getLng(), info.getLat());
         }
 
-        System.out.printf("insert %d statics\n", list.size());
+        System.out.printf("page%d：insert %d statics\n", parseInfo.getIndex(), list.size());
         return list.size();
     }
 
@@ -108,7 +125,7 @@ public class HousingCrawler {
         try {
             CloseableHttpResponse response = httpclient.execute(hg);
             HttpEntity entity = response.getEntity();
-            s = EntityUtils.toString(entity);
+            s = EntityUtils.toString(entity, "utf-8");
 
 //            System.out.println(s);
         } catch (IOException e) {
